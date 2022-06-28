@@ -25,6 +25,7 @@ public class LoadData
     private static int          numWorkers;
     private static int          nextJob = 0;
     private static Object       nextJobLock = new Object();
+	private static HashSet<Integer>		ignoreJobs;
 
     private static LoadDataWorker[] workers;
     private static Thread[]     workerThreads;
@@ -93,6 +94,19 @@ public class LoadData
 	numWorkers      = iniGetInt("loadWorkers", 4);
 	fileLocation    = iniGetString("fileLocation");
 	csvNullValue    = iniGetString("csvNullValue", "NULL");
+	nextJob			= iniGetInt("nextJob", 0);
+
+	String ignoreJobsString = iniGetString("ignoreJobs");
+	ignoreJobs = new HashSet<>();
+	if (ignoreJobsString != null) {
+		for (String x: ignoreJobsString.split(",")) {
+			try {
+				 ignoreJobs.add(Integer.parseInt(x));
+			} catch (Exception e) {
+				System.out.println("unknown ignoreJobs config " + x);
+			}
+		}
+	}
 
 	/*
 	 * If CSV files are requested, open them all.
@@ -309,10 +323,20 @@ public class LoadData
 
 	synchronized(nextJobLock)
 	{
-	    if (nextJob > numWarehouses)
-		job = -1;
-	    else
-		job = nextJob++;
+		while (true) {
+			if (nextJob > numWarehouses) {
+				job = -1;
+				break;
+			} else {
+				job = nextJob++;
+				if (!LoadData.ignoreJobs.contains(job)) {
+					break;
+				} else {
+					LoadData.ignoreJobs.remove(job);
+					System.out.println("ignore job " + job);
+				}
+			}
+		}
 	}
 
 	return job;
